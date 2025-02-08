@@ -32,7 +32,7 @@ def get_invoice_filename(message):
     print(message)
     for i, choice in enumerate(files):
         print(f"[{i}] - {choice}")
-    index = get_int_input(0, len(files) - 1)
+    index = get_int_input(0, max(len(files) - 1, 0))
     return files[index][:-4]
 
 
@@ -46,6 +46,11 @@ def read_invoice_xml(path):
         total_excl_tax = float(invoice[3].text)
         tax = float(invoice[6][0].text)
         price_incl_tax = round((total_excl_tax + tax) / quantity, 2)
+
+        # invoices_df[i, df_description] = invoice[7][1].text
+        # invoices_df[i, df_name] = invoice[1].text
+        # invoices_df[i, df_amount] = quantity
+        # invoices_df[i, df_price] = price_incl_tax
 
         invoices_df[df_description][i] = invoice[7][1].text
         invoices_df[df_name][i] = invoice[1].text
