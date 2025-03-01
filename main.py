@@ -26,11 +26,10 @@ pdf_pattern_1 = "-?[0-9]+ € "
 pdf_pattern_2 = "-?[0-9]+,[0-9][0-9] € "
 
 
-def prepare_invoice_folders(folders: list) -> None:
-    # Create folders if they do not yet exist
-    for folder_dir in folders:
-        if not isdir(folder_dir):
-            mkdir(folder_dir)
+def init_folder(folder_dir: str) -> None:
+    # Create folder if it does not yet exist
+    if not isdir(folder_dir):
+        mkdir(folder_dir)
 
 
 def get_int_input(min_value: int, max_value: int, message: str="> ") -> int:
@@ -116,7 +115,8 @@ def edit_units_row(invoices: DataFrame, orders: list) -> None:
 
 
 def main():
-    prepare_invoice_folders([folder_sheets, folder_invoices])
+    init_folder(folder_sheets)
+    init_folder(folder_invoices)
 
     while True:
         filenames = get_invoice_filenames()
