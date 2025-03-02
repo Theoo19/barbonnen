@@ -1,8 +1,8 @@
-from pandas import DataFrame, ExcelWriter
 from os import listdir, mkdir
 from os.path import isdir
 from re import findall
 from xml.etree import ElementTree
+from pandas import DataFrame, ExcelWriter
 from PyPDF2 import PdfReader
 
 # Default header texts for generated sheets
@@ -15,6 +15,10 @@ df_price = "Prijs (€)"
 # Default folder names to read invoices from / write sheets to
 folder_invoices = "Invoices"
 folder_sheets = "Sheets"
+
+# Namespaces for the XML find and findall methods
+xml_nsmap = {'cbc': 'urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2',
+             'cac': 'urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2'}
 
 # Sentences used to read the PDF
 pdf_start = "BTW bedrag Prijs\n% "
@@ -61,24 +65,20 @@ def get_invoice_choice(files) -> str:
 def read_invoice_xml(path: str) -> DataFrame:
     # Read the XML invoice and extract the invoice entries into a DataFrame
 
-    # Read the XML invoice
-    invoices_root = ElementTree.parse(path).getroot()
-    invoices = list(node for node in invoices_root if node.tag.endswith("InvoiceLine"))
+    # Read the XML invoice and find all the InvoiceLines
+    invoice_root = ElementTree.parse(path).getroot()
+    invoice_lines = invoice_root.findall("cac:InvoiceLine", xml_nsmap)
 
     # Create a DataFrame with a row for each InvoiceLine
-    invoices_df = DataFrame(index=range(len(invoices)), columns=[df_description, df_unit, df_name, df_amount, df_price])
+    invoices_df = DataFrame(index=range(len(invoice_lines)),
+                            columns=[df_description, df_unit, df_name, df_amount, df_price])
 
     # Loop through each invoice, read the information and store it in a DataFrame row
-    for invoice, i in zip(invoices, range(len(invoices))):
-        quantity = float(invoice[2].text)
-        total_excl_tax = float(invoice[3].text)
-        tax = float(invoice[6][0].text)
-        price_incl_tax = round((total_excl_tax + tax) / quantity, 2)
-
-        invoices_df.loc[i, df_description] = invoice[7][1].text
-        invoices_df.loc[i, df_name] = invoice[1].text
-        invoices_df.loc[i, df_amount] = quantity
-        invoices_df.loc[i, df_price] = price_incl_tax
+    for i, inv_line in enumerate(invoice_lines):
+        invoices_df.loc[i, df_description] = inv_line.find("cac:Item", xml_nsmap).find("cbc:Name", xml_nsmap).text
+        invoices_df.loc[i, df_name] = inv_line.find("cbc:Note", xml_nsmap).text
+        invoices_df.loc[i, df_amount] = float(inv_line.find("cbc:InvoicedQuantity", xml_nsmap).text)
+        invoices_df.loc[i, df_price] = float(inv_line.find("cac:Price", xml_nsmap).find("cbc:PriceAmount", xml_nsmap).text)
     return invoices_df
 
 
@@ -92,10 +92,10 @@ def read_invoice_pdf(path: str) -> list:
 
     # Loop through each page and filter out the invoice entries using start and end patterns
     pdf_end = pdf_end_1
-    for i in range(pdf_size):
+    for i, page in enumerate(reader.pages):
         if i == pdf_size - 1:
             pdf_end = pdf_end_2
-        text = reader.pages[i].extract_text()
+        text = page.extract_text()
         start = text.find(pdf_start) + len(pdf_start)
         end = text.find(pdf_end)
         orders.extend(order.replace("\n", "") for order in text[start:end].split("\n% "))
